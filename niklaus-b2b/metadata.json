@@ -1,0 +1,7 @@
+{
+  "name": "Niklaus B2B Portal",
+  "description": "Sistema B2B Profissional com Integração Tray e Gestão Multi-CNPJ.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
