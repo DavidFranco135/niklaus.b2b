@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { User, CNPJ, Product, CartItem, Order } from './types';
-import { INITIAL_MOCK_PRODUCTS, INITIAL_MOCK_CNPJS, INITIAL_MOCK_USERS, trayApi } from './services/mockApi';
+import { trayApi } from './services/mockApi';
+import { db } from './services/firebase';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  query, 
+  orderBy,
+  addDoc
+} from 'firebase/firestore';
 
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -19,42 +29,51 @@ const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCnpjModalOpen, setIsCnpjModalOpen] = useState(false);
   
-  // Estado local que substitui o Firestore
   const [products, setProducts] = useState<Product[]>([]);
   const [cnpjs, setCnpjs] = useState<CNPJ[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
 
-  // Inicialização do Sistema (Lógica Mock)
+  // Sincronização com Firestore
   useEffect(() => {
-    const initData = () => {
-      // Carregar do localStorage ou usar Mocks iniciais
-      const storedProducts = localStorage.getItem('nk_products');
-      const storedCnpjs = localStorage.getItem('nk_cnpjs');
-      const storedUsers = localStorage.getItem('nk_users');
-      const storedOrders = localStorage.getItem('nk_orders');
-      const sessionUser = sessionStorage.getItem('nk_session_user');
+    if (!db) return;
 
-      setProducts(storedProducts ? JSON.parse(storedProducts) : INITIAL_MOCK_PRODUCTS);
-      setCnpjs(storedCnpjs ? JSON.parse(storedCnpjs) : INITIAL_MOCK_CNPJS);
-      setUsers(storedUsers ? JSON.parse(storedUsers) : INITIAL_MOCK_USERS);
-      setOrders(storedOrders ? JSON.parse(storedOrders) : []);
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+      setProducts(data);
+    });
 
-      if (sessionUser) {
-        setUser(JSON.parse(sessionUser));
-      }
-      
-      setLoading(false);
+    const unsubCnpjs = onSnapshot(collection(db, 'cnpjs'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CNPJ));
+      setCnpjs(data);
+    });
+
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      setUsers(data);
+    });
+
+    const qOrders = query(collection(db, 'orders'), orderBy('date', 'desc'));
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+      setOrders(data);
+    });
+
+    // Restaurar sessão do usuário
+    const sessionUser = sessionStorage.getItem('nk_session_user');
+    if (sessionUser) {
+      setUser(JSON.parse(sessionUser));
+    }
+
+    setLoading(false);
+
+    return () => {
+      unsubProducts();
+      unsubCnpjs();
+      unsubUsers();
+      unsubOrders();
     };
-
-    initData();
   }, []);
-
-  // Persistência Local para simular "Banco de Dados"
-  useEffect(() => { if (products.length) localStorage.setItem('nk_products', JSON.stringify(products)); }, [products]);
-  useEffect(() => { if (cnpjs.length) localStorage.setItem('nk_cnpjs', JSON.stringify(cnpjs)); }, [cnpjs]);
-  useEffect(() => { if (users.length) localStorage.setItem('nk_users', JSON.stringify(users)); }, [users]);
-  useEffect(() => { if (orders.length) localStorage.setItem('nk_orders', JSON.stringify(orders)); }, [orders]);
 
   const handleLogin = async (email: string, password?: string) => {
     const foundUser = users.find(u => u.email === email && u.password === password);
@@ -83,8 +102,12 @@ const App: React.FC = () => {
       cnpjs: []
     };
 
-    setUsers(prev => [...prev, newUser]);
-    alert("Cadastro solicitado com sucesso! Entre em contato com o administrador para liberação.");
+    try {
+      await setDoc(doc(db!, 'users', newUser.id), newUser);
+      alert("Cadastro solicitado com sucesso! Entre em contato com o administrador para liberação.");
+    } catch (e) {
+      alert("Erro ao salvar cadastro no Firebase.");
+    }
   };
 
   const handleLogout = () => {
@@ -94,9 +117,25 @@ const App: React.FC = () => {
     sessionStorage.removeItem('nk_session_user');
   };
 
+  const handleUpsertProduct = async (p: Product) => {
+    await setDoc(doc(db!, 'products', p.id), p);
+  };
+
+  const handleUpsertCnpj = async (c: CNPJ) => {
+    await setDoc(doc(db!, 'cnpjs', c.id), c);
+  };
+
+  const handleUpsertUser = async (u: User) => {
+    await setDoc(doc(db!, 'users', u.id), u);
+  };
+
+  const handleOrderCreated = async (order: Order) => {
+    await setDoc(doc(db!, 'orders', order.id), order);
+  };
+
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-slate-900 text-white font-black animate-pulse">
-      CARREGANDO PORTAL NIKLAUS...
+      CONECTANDO AO FIREBASE NIKLAUS...
     </div>
   );
 
@@ -113,8 +152,7 @@ const App: React.FC = () => {
           </div>
           <h2 className="text-2xl font-black text-slate-900 mb-4">Acesso em Análise</h2>
           <p className="text-slate-500 font-medium leading-relaxed mb-4">Olá, <strong>{user.name}</strong>!</p>
-          <p className="text-slate-400 text-sm mb-6">Categoria: {user.category || 'Não definida'}</p>
-          <p className="text-slate-500 font-medium leading-relaxed mb-8">Seu cadastro foi recebido. Entre em contato com o suporte para liberar suas unidades.</p>
+          <p className="text-slate-400 text-sm mb-6">Status: Aguardando liberação de CNPJs</p>
           <button onClick={handleLogout} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-black transition-all">Sair do Portal</button>
         </div>
       </div>
@@ -149,7 +187,7 @@ const App: React.FC = () => {
               onUpdateQuantity={(id, delta) => setCart(prev => prev.map(i => i.id === id ? {...i, quantity: Math.max(1, i.quantity + delta)} : i))}
               onRemoveFromCart={(id) => setCart(prev => prev.filter(i => i.id !== id))}
               onClearCart={() => setCart([])}
-              onOrderCreated={(order) => setOrders(prev => [order, ...prev])}
+              onOrderCreated={handleOrderCreated}
             />
           )}
           {currentPage === 'history' && <History user={user} orders={orders} cnpjs={cnpjs} />}
@@ -157,11 +195,11 @@ const App: React.FC = () => {
           {currentPage === 'backoffice' && user.role === 'ADMIN' && (
             <Backoffice 
               cnpjs={cnpjs}
-              onUpsertCnpj={(c) => setCnpjs(prev => prev.some(x => x.id === c.id) ? prev.map(x => x.id === c.id ? c : x) : [...prev, c])}
+              onUpsertCnpj={handleUpsertCnpj}
               products={products}
-              onUpsertProduct={(p) => setProducts(prev => prev.some(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [...prev, p])}
+              onUpsertProduct={handleUpsertProduct}
               users={users}
-              onUpsertUser={(u) => setUsers(prev => prev.some(x => x.id === u.id) ? prev.map(x => x.id === u.id ? u : x) : [...prev, u])}
+              onUpsertUser={handleUpsertUser}
             />
           )}
         </main>
