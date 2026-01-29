@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CNPJ, Product, User } from '../types';
 import { trayService } from '../services/trayService';
 import { USER_CATEGORIES } from './Login';
+import { INITIAL_MOCK_PRODUCTS, INITIAL_MOCK_CNPJS, INITIAL_MOCK_USERS } from '../services/mockApi';
 
 interface BackofficeProps {
   cnpjs: CNPJ[];
@@ -284,9 +285,25 @@ const Backoffice: React.FC<BackofficeProps> = ({ cnpjs, onUpsertCnpj, products, 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCnpjModalOpen, setIsCnpjModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const pendingUsers = users.filter(u => u.role === 'REPRESENTATIVE' && u.cnpjs.length === 0);
   const activeUsers = users.filter(u => u.role === 'REPRESENTATIVE' && u.cnpjs.length > 0);
+
+  const handleSeedDatabase = async () => {
+    if (!confirm("Isso irá importar os dados de teste iniciais para o seu Firebase. Deseja continuar?")) return;
+    setIsSeeding(true);
+    try {
+      for (const p of INITIAL_MOCK_PRODUCTS) await onUpsertProduct(p);
+      for (const c of INITIAL_MOCK_CNPJS) await onUpsertCnpj(c);
+      for (const u of INITIAL_MOCK_USERS) await onUpsertUser(u);
+      alert("Banco de dados populado com sucesso!");
+    } catch (e) {
+      alert("Erro ao popular banco.");
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto pb-20">
@@ -299,10 +316,21 @@ const Backoffice: React.FC<BackofficeProps> = ({ cnpjs, onUpsertCnpj, products, 
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">Gestão Master</h1>
           <p className="text-slate-500 font-medium">Controle total sobre representantes, unidades e catálogo.</p>
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
-           <button onClick={() => setActiveTab('users')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Vendedores</button>
-           <button onClick={() => setActiveTab('cnpjs')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'cnpjs' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Unidades</button>
-           <button onClick={() => setActiveTab('catalog')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'catalog' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Catálogo</button>
+        <div className="flex flex-col items-end gap-4">
+          <div className="flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+             <button onClick={() => setActiveTab('users')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Vendedores</button>
+             <button onClick={() => setActiveTab('cnpjs')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'cnpjs' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Unidades</button>
+             <button onClick={() => setActiveTab('catalog')} className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'catalog' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}>Catálogo</button>
+          </div>
+          {products.length === 0 && (
+            <button 
+              onClick={handleSeedDatabase} 
+              disabled={isSeeding}
+              className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 underline"
+            >
+              {isSeeding ? 'Importando...' : 'Importar Dados de Teste'}
+            </button>
+          )}
         </div>
       </header>
 
