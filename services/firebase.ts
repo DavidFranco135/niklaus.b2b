@@ -1,18 +1,25 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getAnalytics } from 'firebase/analytics';
 
-// Substitua os valores abaixo pelas configurações do seu projeto no Console do Firebase
+// Configuração real do projeto Niklaus B2B
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "seu-projeto.firebaseapp.com",
-  projectId: "seu-projeto",
-  storageBucket: "seu-projeto.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:000000000000"
+  apiKey: "AIzaSyBUvwY-e7h0KZyFJv7n0ignpzlMUGJIurU",
+  authDomain: "niklaus-b2b.firebaseapp.com",
+  projectId: "niklaus-b2b",
+  storageBucket: "niklaus-b2b.firebasestorage.app",
+  messagingSenderId: "936430517671",
+  appId: "1:936430517671:web:6a0f1b86a39621d74c4a82",
+  measurementId: "G-3VGKJGWFSY"
 };
 
+// Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
+
+// Exporta as instâncias dos serviços
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
 export default app;
